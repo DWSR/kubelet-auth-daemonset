@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "kubelet-auth-daemonset.fullname" . | quote }}
+  annotations: {{ .Values.annotations | toJson }}
+  labels:
+{{ include "kubelet-auth-daemonset.labels" . | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+{{ include "kubelet-auth-daemonset.selectorLabels" . | indent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: "100%" # Allow every pod to be recreated at once.
+  template:
+    metadata:
+      annotations: {{ merge .Values.podAnnotations .Values.annotations | toJson }}
+      labels:
+{{ include "kubelet-auth-daemonset.labels" . | indent 8 }}
+    spec:
+      tolerations: {{ .Values.tolerations | toJson }}
+      containers:
+        - name: authenticator
+          image: {{ printf "%s:%s" .Values.image.repository .Values.image.tag }}
+          resources: {{ .Values.resources | toJson }}
+          command: ["/write_docker_config.py"]
+          volumeMounts:
+            - name: dockerconfig
+              mountPath: /docker
+            - name: credentials
+              mountPath: /creds
+            - name: script
+              mountPath: /write_docker_config.py
+              subPath: write_docker_config.py
+          env:
+            - name: SLEEP_INTERVAL
+              value: "120"
+            - name: DOCKER_CONFIG
+              value: "/docker/config.json"
+            - name: SECRET_FILE_PATH
+              value: "/creds"
+            {{- if .Values.debug }}
+            - name: DEBUG
+              value: "1"
+            {{- end }}
+      volumes:
+        - name: dockerconfig
+          hostPath:
+            path: /.docker # .docker is intentional
+            type: DirectoryOrCreate
+        - name: credentials
+          secret:
+            secretName: {{ include "kubelet-auth-daemonset.fullname" . | quote }}
+            defaultMode: 0600
+        - name: script
+          configMap:
+            name: {{ include "kubelet-auth-daemonset.fullname" . | quote }}
+            defaultMode: 0755

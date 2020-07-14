@@ -1,0 +1,6 @@
+apiVersion: v2
+name: artifactory-authenticator
+description: Places Artifactory credentials on the host so that images from private registries can be launched.
+type: application
+version: 0.1.0
+appVersion: 0.1.0
